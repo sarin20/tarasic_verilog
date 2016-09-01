@@ -140,6 +140,18 @@ module handle(clk, rst, convst, sck, sdi, sdo, led);
     
 endmodule
 
+module hardinstance(clk, rst, convst, sck, sdi, sdo, led);
+
+    input clk; /* synthesis chip_pin = "E20" */;
+    input rst; /* synthesis chip_pin = "L10" */;
+    output convst; /* synthesis chip_pin = "U9" */;
+    output sck; /* synthesis chip_pin = "V10" */;
+    output sdi; /* synthesis chip_pin = "AC4" */;
+    input sdo; /* synthesis chip_pin = "AD4" */;
+    output [7:0] led; /* synthesis chip_pin = "AA23, Y16, AE26, AF26, V15, V16, AA24, W15" */;
+
+endmodule
+
 module test();
 
     reg clk;
