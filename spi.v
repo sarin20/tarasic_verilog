@@ -128,8 +128,55 @@ module LTC2308DRV(clk, rst, conf, start, res, ready, convst, sck, sdi, sdo);
             endcase
         end
     end
-    
+endmodule
 
+module handle(clk, rst, convst, sck, sdi, sdo, led);
+
+    localparam
+        ADC_CONF_BITS = 6'b000000;
+
+    input clk;
+    input rst;
+    output convst;
+    output sck;
+    output sdi;
+    input sdo;
+    output [7:0] led;
+
+    wire ready;
+    wire [11:0] data;
+
+    reg start;
+    reg [4:0] cnt;
+
+    assign led = data[11:5];
+
+    always @(posedge clk) begin        
+        if (cnt) begin
+            if (cnt == 8'd1 || cnt == 8'd2) begin
+                start <= 1;
+            end else begin
+                start <= 0;
+            end
+            cnt <= cnt + 1;
+        end else begin
+            cnt <= 1;
+            start <= 0;
+        end
+    end
+
+    LTC2308DRV drv(.clk(clk)
+        , .rst(rst)
+        , .conf(ADC_CONF_BITS)
+        , .start(start)
+        , .res(data)
+        , .ready(ready)
+        , .convst(convst)
+        , .sck(sck)
+        , .sdi(sdi)
+        , .sdo(sdo)
+    );
+    
 endmodule
 
 module test();
@@ -151,22 +198,29 @@ module test();
     wire sdi;
     reg sdo;
 
+    wire [7:0] led;
+
     initial begin
         $dumpfile("spi2.vcd");
         // $dumpvars(0, clk, latch, d, out, ob, sin.bf, sin.bin, sout.bf);
-        $dumpvars(0, clk, rst, start, ready, conf, convst, sck, sdi, sdo, res, drv.hold, drv.going, drv.state);
+        //$dumpvars(0, clk, rst, start, ready, conf, convst, sck, sdi, sdo, res, drv.hold, drv.going, drv.state);
+        $dumpvars(0, clk, rst, convst, sck, sdi, sdo, led, hnd.start, hnd.cnt);
         
         #0 clk <= 0;
-        #0 start <= 0;
-        #0 rst <= 1;
-        #0 conf <= 6'b100001;
         #0 sdo <= 1;
+        #0 rst <= 0;
 
         #5 rst <= 1;
         #15 rst <= 0;
+        /*#0 start <= 0;
+        #0 rst <= 1;
+        #0 conf <= 6'b100001;
+        
+
+        
 
         #25 start <= 1;
-        #20 start <= 0;
+        #20 start <= 0;*/
 
         
         /*#0 latch <= 0;
@@ -189,16 +243,25 @@ module test();
         #15 latch <= 0;*/
         #400 start <= 1;
         #100 start <= 0;
-        #300 $finish;
+        #2500 $finish;
     end
 
     always begin
-        #10 clk <= ~clk;
+        #20 clk <= ~clk;
     end
 
-    shiftIn sin(.clk(clk), .latch(latch), .bin(ob), .out(out));
-    shiftOut sout(.clk(clk), .latch(latch), .in(d), .out(ob));
+    handle hnd(.clk(clk)
+        , .rst(rst)
+        , .convst(convst)
+        , .sck(sck)
+        , .sdi(sdi)
+        , .sdo(sdo)
+        , .led(led)
+    );
 
-    LTC2308DRV drv(.clk(clk), .rst(rst), .conf(conf), .start(start), .res(res), .ready(ready), .convst(convst), .sck(sck), .sdi(sdi), .sdo(sdo));
+    //shiftIn sin(.clk(clk), .latch(latch), .bin(ob), .out(out));
+    //shiftOut sout(.clk(clk), .latch(latch), .in(d), .out(ob));
+
+    //LTC2308DRV drv(.clk(clk), .rst(rst), .conf(conf), .start(start), .res(res), .ready(ready), .convst(convst), .sck(sck), .sdi(sdi), .sdo(sdo));
 
 endmodule
