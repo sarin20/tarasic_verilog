@@ -1,42 +1,3 @@
-module shiftIn(clk, latch, bin, out);
-    parameter w = 8;
-
-    input clk;
-    input latch;
-    input bin;
-    output reg [w - 1:0] out;
-    reg [w - 1:0] bf;
-
-    always @(negedge clk) begin
-        if (latch == 1'b0) begin
-            bf <= {bf[w - 2:0], bin};
-        end else if (latch == 1'b1) begin
-            out <= bf;
-        end
-    end
-
-endmodule
-
-module shiftOut(clk, latch, in, out);
-    parameter w = 8;
-
-    input clk;
-    input latch;
-    input [w - 1:0] in;    
-    output reg out;
-    reg [w - 1:0] bf;
-  
-    always @(posedge clk) begin
-        if (latch == 1'b0) begin
-            out <= bf[w - 1];
-            bf <= {bf[w - 2:0], 1'b0};
-        end else if (latch == 1'b1) begin
-            bf <= in;
-        end
-    end
-
-endmodule
-
 module LTC2308DRV(clk, rst, conf, start, res, ready, convst, sck, sdi, sdo);
     parameter w = 12;
 
@@ -212,37 +173,7 @@ module test();
 
         #5 rst <= 1;
         #15 rst <= 0;
-        /*#0 start <= 0;
-        #0 rst <= 1;
-        #0 conf <= 6'b100001;
         
-
-        
-
-        #25 start <= 1;
-        #20 start <= 0;*/
-
-        
-        /*#0 latch <= 0;
-        #0 bin <= 0;
-        #10 d <= 8'b11110000;
-
-        #11 latch <= 1;
-        #21 latch <= 0;
-        #150 d <= 8'b10101010;
-        #11 latch <= 1;
-
-        
-
-        #21 latch <= 0;
-        #162 latch <= 1;
-        #15 latch <= 0;
-        #200 latch <= 1;
-        #15 latch <= 0;
-        #174 latch <= 1;
-        #15 latch <= 0;*/
-        #400 start <= 1;
-        #100 start <= 0;
         #2500 $finish;
     end
 
@@ -259,9 +190,5 @@ module test();
         , .led(led)
     );
 
-    //shiftIn sin(.clk(clk), .latch(latch), .bin(ob), .out(out));
-    //shiftOut sout(.clk(clk), .latch(latch), .in(d), .out(ob));
-
-    //LTC2308DRV drv(.clk(clk), .rst(rst), .conf(conf), .start(start), .res(res), .ready(ready), .convst(convst), .sck(sck), .sdi(sdi), .sdo(sdo));
-
+    
 endmodule
