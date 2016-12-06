@@ -1,28 +1,45 @@
-module ONCHIPRAM(address, rst, clock, data, wren, q);
+module ONCHIPRAM(address,
+    byteenable,
+    chipselect,
+    clk,
+    clken,
+    reset,
+    reset_req,
+    write,
+    writedata,
+    readdata                                            
+);
     parameter
-        D = 256
+        D = 16384
         , W = 32
-        , AW = 8;
+        , AW = 14;
 
     input [AW - 1:0] address;
-    input rst;
-    input clock;
-    input [W - 1:0] data;
-    input wren;
-    output [W - 1:0] q;
+    input [7:0] byteenable;
+    input chipselect;
+    input clk;
+    input clken;
+    input reset;
+    input reset_req;
+    input write;
+    input [W - 1:0] writedata;
+
+    output [W - 1:0] readdata;
+
+
     integer c;
     reg [W - 1:0] ramblock [D - 1:0];
 
-    assign q = ramblock[address];
+    assign readdata = ramblock[address];
 
-    always @(posedge clock) begin
-        if (rst) begin
-            /*for (c = 0; c < D; c = c + 1) begin
+    always @(posedge clk) begin
+        if (reset) begin
+            for (c = 0; c < D; c = c + 1) begin
                 ramblock[c] <= 0;
-            end*/
-        end else if (wren) begin
+            end
+        end else if (write) begin
             if (address || address == 0) begin
-                ramblock[address] <= data;
+                ramblock[address] <= writedata;
             end
         end
     end
@@ -135,19 +152,26 @@ module counter(clk, rst, out);
     end
 endmodule
 
-module acounter(clk, rst, out);
+module acounter(clk, rst, an, out);
     parameter
-        W = 8;
+        W = 14;
 
     input clk;
     input rst;
+    input an;
     output reg [W - 1:0] out;
+
+    reg pan;
 
     always @(negedge clk) begin
         if (rst) begin
             out <= 0;
+            pan <= an;
         end else begin
-            out <= out + 1'b1;
+            if (an && ~pan) begin 
+                out <= out + 1'b1;
+            end
+            pan <= an;
         end
     end
 endmodule
@@ -169,10 +193,10 @@ module databufer(clk, adcin, cntin, hold, out);
     end
 endmodule
 
-module handle(clk, rst, next, opmode, resmux, convst, sck, sdi, sdo, led);
+module handle(clk, rst, next, opmode, resmux, convst, sck, sdi, sdo, led, address, dataout, write, datain);
     parameter
         WORD_LEN = 32,
-        ADDR_W = 8,
+        ADDR_W = 14,
         ADC_CONF_BITS = 6'b000000;
 
     localparam
@@ -192,9 +216,13 @@ module handle(clk, rst, next, opmode, resmux, convst, sck, sdi, sdo, led);
     output [7:0] ledq;
     output [7:0] ledw;
 
-    wire [WORD_LEN - 1:0] word;
-    wire [WORD_LEN - 1:0] q;
-    wire [ADDR_W - 1:0] address;
+    reg [WORD_LEN - 1:0] word;
+  //  wire [WORD_LEN - 1:0] q;
+    output [ADDR_W - 1:0] address;
+    output [31:0] dataout;
+    output write;
+    input [31:0] datain;
+
     wire ready;
     wire [11:0] data;
     reg start;
@@ -202,10 +230,12 @@ module handle(clk, rst, next, opmode, resmux, convst, sck, sdi, sdo, led);
     wire [63:0] cnt_out;
     wire hold;
 
-    assign ledq = resmux[1] ? (resmux[0] ? q[31:24] : q[23:16]) : (resmux[0] ? q[15:8] : q[7:0]);
+    assign ledq = resmux[1] ? (resmux[0] ? datain[31:24] : datain[23:16]) : (resmux[0] ? datain[15:8] : datain[7:0]);
     assign ledw = resmux[1] ? (resmux[0] ? word[31:24] : word[23:16]) : (resmux[0] ? word[15:8] : word[7:0]);
-    assign led = opmode[1] ? ledq : ledw;
+    assign led = ledw; //opmode[1] ? ledq : ledw;
     assign cnt = cnt_out[5:0];
+    assign dataout = {16'b0, word};
+    assign write = ready;
 
     always @(posedge clk) begin
         if (rst == 1'b0) begin
@@ -237,13 +267,9 @@ module handle(clk, rst, next, opmode, resmux, convst, sck, sdi, sdo, led);
         , .sdo(sdo)
     );
 
-    databufer dbf(
-        .clk(clk)
-        , .adcin({4'b0000, data})
-        , .cntin(cnt_out[15:0])
-        , .hold(next)
-        , .out(word)
-    );
+    always @(posedge ready) begin
+        word <= {cnt_out[15:0], 4'b0000, data};
+    end
 
     defparam cnt_inst.W = 64;
 
@@ -254,18 +280,10 @@ module handle(clk, rst, next, opmode, resmux, convst, sck, sdi, sdo, led);
     );
 
     acounter addr_cnt(
-        .clk(next)
+        .clk(clk)
+        , .an(ready)
         , .rst(rst)
         , .out(address)
-    );
-
-    ONCHIPRAM ram (
-        .address(address),
-        .rst(rst),
-        .clock(clk),
-        .data(word),
-        .wren((opmode[1] == 0)),
-        .q(q)
     );
     
 endmodule
@@ -285,7 +303,7 @@ module test();
 
     initial begin        
         $dumpfile("mem.vcd");
-        $dumpvars(0, clk, gres, next, opmode, resmux, convst, led, h.start, h.address, h.q, h.ledq, h.ledw, h.drv.ready, h.drv.res, h.addr_cnt.rst);
+        $dumpvars(0, clk, gres, next, opmode, resmux, convst, led, write, dataout, datain, h.start, h.word, h.ready, h.ledq, h.ledw, h.drv.ready, h.drv.res, h.addr_cnt.rst);
         #0 opmode <= 2'b00;
         #0 resmux <= 2'b00;
         #0 next <= 0;
@@ -306,7 +324,7 @@ module test();
         #250 next <= 1;
         #40 next <= 0;
         #0 opmode <= 2'b10;
-        #100 gres <= 1;
+        #100 gres <= 0;
         #20 next <= 1;
         #20 next <= 0;
         #40 gres <= 0;
@@ -317,6 +335,7 @@ module test();
         #40 resmux <= 2'b11;
         #40 next <= 1;
         #40 next <= 0;
+        #3 sdo <= 0;
 
         #40 resmux <= 2'b00;
         #40 resmux <= 2'b01;
@@ -346,6 +365,11 @@ module test();
         #10 clk <= ~clk;
     end
 
+    wire [13:0] address;
+    wire [31:0] dataout;
+    wire [31:0] datain;
+    wire write;
+
     handle h(
         .clk(clk)
         , .rst(gres)
@@ -357,5 +381,23 @@ module test();
         , .sdi(sdi)
         , .sdo(sdo)
         , .led(led)
+        , .address(address)
+        , .dataout(dataout)
+        , .write(write)
+        , .datain(datain)
     );
+
+    ONCHIPRAM m(
+        .address(address)
+        , .byteenable(8'b1111_1111)
+        , .chipselect(1'b1)
+        , .clk(clk)
+        , .clken(1'b1)
+        , .reset(gres)
+        , .reset_req(1'b0)
+        , .write(write)
+        , .writedata(dataout)
+        , .readdata(datain)
+    );
+
 endmodule
